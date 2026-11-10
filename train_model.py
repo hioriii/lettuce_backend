@@ -3,8 +3,8 @@ import joblib
 import numpy as np
 
 from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
 
 from utils.image_processing import process_image
 
@@ -37,11 +37,17 @@ if len(X) == 0:
     raise Exception("No images found. Add images inside dataset/healthy and dataset/unhealthy.")
 
 X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42
+    X, y, test_size=0.2, random_state=42, stratify=y
 )
 
-model = LogisticRegression(max_iter=1000)
-model.fit(X_train, y_train)
+search = GridSearchCV(
+    LogisticRegression(max_iter=1000, class_weight="balanced"),
+    {"C": [0.01, 0.1, 1, 10, 100]},
+    cv=5,
+    scoring="accuracy",
+)
+search.fit(X_train, y_train)
+model = search.best_estimator_
 
 predictions = model.predict(X_test)
 accuracy = accuracy_score(y_test, predictions)
@@ -52,5 +58,9 @@ joblib.dump(model, MODEL_PATH)
 joblib.dump(labels, LABELS_PATH)
 
 print("Model trained successfully.")
+print(f"Best C: {search.best_params_['C']}")
 print(f"Accuracy: {accuracy * 100:.2f}%")
+print("Confusion matrix (rows=actual, cols=predicted) [healthy, unhealthy]:")
+print(confusion_matrix(y_test, predictions))
+print(classification_report(y_test, predictions, target_names=labels))
 print(f"Saved model to {MODEL_PATH}")
